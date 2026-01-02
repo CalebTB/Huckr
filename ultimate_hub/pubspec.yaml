@@ -1,0 +1,76 @@
+name: ultimate_hub
+description: Ultimate Frisbee Tournament Management and Live Game Tracking App
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.4.9
+  riverpod_annotation: ^2.3.3
+  
+  # Firebase (updated for Xcode 16 compatibility)
+  firebase_core: ^3.8.0
+  firebase_auth: ^5.3.4
+  cloud_firestore: ^5.6.0
+  firebase_database: ^11.2.0
+  firebase_messaging: ^15.2.0
+  
+  # Local Storage (Offline-first)
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  
+  # Navigation
+  go_router: ^13.0.0
+  
+  # UI Components
+  flutter_animate: ^4.3.0
+  google_fonts: ^6.1.0
+  fl_chart: ^0.66.0
+  flutter_svg: ^2.0.9
+  cached_network_image: ^3.3.1
+  shimmer: ^3.0.0
+  
+  # Icons
+  cupertino_icons: ^1.0.6
+  flutter_feather_icons: ^2.0.0+1
+  
+  # Utilities
+  uuid: ^4.2.1
+  intl: ^0.18.1
+  connectivity_plus: ^5.0.2
+  collection: ^1.18.0
+  equatable: ^2.0.5
+  dartz: ^0.10.1
+  
+  # Code Generation Annotations
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  
+  # Code Generation
+  build_runner: ^2.4.7
+  freezed: ^2.4.6
+  json_serializable: ^6.7.1
+  riverpod_generator: ^2.3.9
+  hive_generator: ^2.0.1
+
+flutter:
+  uses-material-design: true
+
+  # Note: Fonts are loaded via google_fonts package at runtime
+  # Add assets here when needed:
+  # assets:
+  #   - assets/images/
+  #   - assets/icons/
