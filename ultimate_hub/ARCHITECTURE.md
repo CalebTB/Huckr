@@ -10,30 +10,13 @@ A comprehensive Flutter application for managing ultimate frisbee tournaments, t
 
 ### Frontend (Mobile App)
 - **Framework**: Flutter 3.x (Dart)
-- **State Management**: Riverpod 2.0 (recommended) or BLoC
-- **Local Database**: Hive or Isar (offline-first, fast NoSQL)
-- **Real-time Sync**: Firebase Realtime Database or Supabase Realtime
-- **Authentication**: Firebase Auth or Supabase Auth
+- **State Management**: Riverpod 2.0 with code generation
+- **Local Database**: Hive (offline-first, fast NoSQL)
+- **Real-time Sync**: Supabase Realtime
+- **Authentication**: Supabase Auth
 
-### Backend Options
+### Backend: Supabase (Selected)
 
-#### Option A: Firebase (Recommended for MVP - Faster to build)
-```
-┌─────────────────────────────────────────────────────┐
-│                   FIREBASE SUITE                     │
-├─────────────────────────────────────────────────────┤
-│  Authentication  │  Firestore  │  Realtime DB      │
-│  (Users/Auth)    │  (Main Data)│  (Live Tracking)  │
-├─────────────────────────────────────────────────────┤
-│  Cloud Functions │  Storage    │  Cloud Messaging  │
-│  (Business Logic)│  (Media)    │  (Push Notifs)    │
-└─────────────────────────────────────────────────────┘
-```
-
-**Pros**: Fast development, built-in offline sync, excellent Flutter support
-**Cons**: Vendor lock-in, costs can scale with users
-
-#### Option B: Supabase (Open-source alternative)
 ```
 ┌─────────────────────────────────────────────────────┐
 │                   SUPABASE                          │
@@ -46,17 +29,19 @@ A comprehensive Flutter application for managing ultimate frisbee tournaments, t
 └─────────────────────────────────────────────────────┘
 ```
 
-**Pros**: Open-source, PostgreSQL power, self-hostable, predictable pricing
-**Cons**: Slightly more setup, offline sync requires more work
+**Why Supabase:**
+- Open-source with PostgreSQL power
+- MCP integration for development workflow
+- Self-hostable for long-term control
+- Predictable pricing model
+- Built-in Row-Level Security (RLS)
+- Realtime subscriptions for live tracking
+- Excellent Flutter SDK (supabase_flutter)
 
-#### Option C: Custom Backend (Most control, more work)
-- **API**: Node.js/Express or Python/FastAPI
-- **Database**: PostgreSQL
-- **Real-time**: Socket.io or WebSockets
-- **Hosting**: Railway, Render, or AWS
-
-### My Recommendation
-**Start with Firebase** for rapid MVP development. The offline sync and real-time capabilities are built-in, which is perfect for your live tracking feature. You can migrate later if needed.
+**Offline-First Strategy:**
+- Local writes to Hive (immediate UI response)
+- Background sync to Supabase when online
+- Conflict resolution via timestamps and UUIDs
 
 ---
 
@@ -316,7 +301,7 @@ lib/
 
 ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
 │   UI LAYER   │      │  LOCAL DB    │      │  REMOTE DB   │
-│   (Flutter)  │      │   (Hive)     │      │  (Firebase)  │
+│   (Flutter)  │      │   (Hive)     │      │  (Supabase)  │
 └──────┬───────┘      └──────┬───────┘      └──────┬───────┘
        │                     │                     │
        │  1. User Action     │                     │
@@ -367,8 +352,8 @@ TRACKER DEVICE                           VIEWER DEVICES
 │  Tap on      │   1. Record Play      │  See disc    │
 │  field to    │──────────────────────►│  position    │
 │  mark disc   │                        │  update      │
-│  position    │   2. Firebase          │  live        │
-│              │      Realtime DB       │              │
+│  position    │   2. Supabase          │  live        │
+│              │      Realtime          │              │
 │  Select      │                        │  Play-by-    │
 │  action      │   3. Broadcast to      │  play feed   │
 │  (catch,     │      all listeners     │  updates     │
@@ -377,26 +362,10 @@ TRACKER DEVICE                           VIEWER DEVICES
 │              │                        │  update      │
 └──────────────┘                        └──────────────┘
 
-Data pushed to Firebase Realtime DB:
-{
-  "games": {
-    "game_abc123": {
-      "score": { "home": 7, "away": 5 },
-      "currentPoint": 13,
-      "discPosition": { "x": 45.5, "y": 22.0 },
-      "possession": "home",
-      "lastPlay": {
-        "type": "catch",
-        "playerId": "player_xyz",
-        "playerName": "John Smith",
-        "x": 45.5,
-        "y": 22.0,
-        "timestamp": 1703808000000
-      },
-      "recentPlays": [ ... last 10 plays ... ]
-    }
-  }
-}
+Data pushed to Supabase with Realtime subscriptions:
+INSERT INTO plays (game_id, play_type, field_x, field_y, ...)
+→ Triggers Realtime notification to all subscribed clients
+→ Clients receive play event and update UI
 ```
 
 ---
@@ -411,14 +380,10 @@ dependencies:
   # State Management
   flutter_riverpod: ^2.4.9
   riverpod_annotation: ^2.3.3
-  
-  # Firebase
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.16.0
-  cloud_firestore: ^4.14.0
-  firebase_database: ^10.4.0  # Realtime DB for live tracking
-  firebase_messaging: ^14.7.9
-  
+
+  # Supabase Backend
+  supabase_flutter: ^2.3.0
+
   # Local Storage (Offline)
   hive: ^2.2.3
   hive_flutter: ^1.1.0
@@ -503,10 +468,12 @@ dev_dependencies:
 ## Next Steps
 
 1. **Set up Flutter project with folder structure**
-2. **Create core data models (Game, Play, Player, Team)**
-3. **Build the field canvas widget**
+2. **Create core data models (Game, Play, Player, Team) with Freezed**
+3. **Configure Supabase project and database schema**
 4. **Implement local storage with Hive**
-5. **Build the live tracking screen**
-6. **Add Firebase integration**
+5. **Build data layer with offline-first repositories**
+6. **Build the field canvas widget**
+7. **Build the live tracking screen**
+8. **Integrate Supabase Realtime for live updates**
 
-Would you like me to start generating the Flutter code for Phase 1?
+See GitHub Issues for detailed Phase 1 implementation tasks.

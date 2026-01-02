@@ -1,0 +1,142 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate-pr:
+    name: Validate PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR title format
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          # Check if title matches [TYPE] Component: Description format
+          if [[ ! "$PR_TITLE" =~ ^\[([A-Z]+)\][[:space:]].+:[[:space:]].+ ]]; then
+            echo "❌ PR title does not match required format"
+            echo "Expected: [TYPE] Component: Brief description"
+            echo "Example: [FEAT] Game Setup: Add team roster input"
+            echo "Got: $PR_TITLE"
+            exit 1
+          fi
+
+          # Extract type and validate
+          TYPE=$(echo "$PR_TITLE" | sed -n 's/^\[\([A-Z]*\)\].*/\1/p')
+          VALID_TYPES=("FEAT" "FIX" "REFACTOR" "DOCS" "TEST" "CHORE" "PERF")
+
+          if [[ ! " ${VALID_TYPES[@]} " =~ " ${TYPE} " ]]; then
+            echo "❌ Invalid PR type: $TYPE"
+            echo "Valid types: ${VALID_TYPES[*]}"
+            exit 1
+          fi
+
+          echo "✅ PR title format is valid"
+
+      - name: Validate branch name
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+
+          # Check if branch name matches type/issue-number-description format
+          if [[ ! "$BRANCH_NAME" =~ ^(feat|fix|refactor|docs|test|chore|perf)/[0-9]+-[a-z0-9-]+ ]]; then
+            echo "⚠️  Branch name does not match recommended format"
+            echo "Recommended: type/issue-number-brief-description"
+            echo "Example: feat/3-game-setup-screen"
+            echo "Got: $BRANCH_NAME"
+            # Don't fail - just warn
+          else
+            echo "✅ Branch name format is valid"
+          fi
+
+      - name: Check for merge conflicts
+        run: |
+          git fetch origin ${{ github.base_ref }}
+
+          if git merge-tree $(git merge-base HEAD origin/${{ github.base_ref }}) origin/${{ github.base_ref }} HEAD | grep -q "changed in both"; then
+            echo "❌ Merge conflicts detected"
+            echo "Please resolve conflicts with base branch"
+            exit 1
+          fi
+
+          echo "✅ No merge conflicts detected"
+
+      - name: Check for sensitive files
+        run: |
+          SENSITIVE_PATTERNS=(
+            "*.env"
+            "*.key"
+            "*.pem"
+            "*credentials*.json"
+            "*secrets*.json"
+            "*.p12"
+            "*.jks"
+          )
+
+          FOUND_SENSITIVE=false
+
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            if git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -q "$pattern"; then
+              echo "⚠️  Potentially sensitive file detected: $pattern"
+              FOUND_SENSITIVE=true
+            fi
+          done
+
+          if [ "$FOUND_SENSITIVE" = true ]; then
+            echo "⚠️  WARNING: Sensitive files detected in PR"
+            echo "Please ensure these files do not contain actual secrets"
+            echo "Consider using .gitignore or environment variables"
+            # Don't fail - just warn
+          else
+            echo "✅ No sensitive files detected"
+          fi
+
+  validate-commits:
+    name: Validate Commits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages
+        run: |
+          git fetch origin ${{ github.base_ref }}
+
+          COMMITS=$(git log origin/${{ github.base_ref }}..HEAD --pretty=format:"%s")
+          INVALID_COMMITS=()
+
+          while IFS= read -r commit; do
+            # Skip merge commits
+            if [[ "$commit" =~ ^Merge ]]; then
+              continue
+            fi
+
+            # Check conventional commit format: type(scope): description
+            # Also accept type: description (scope optional)
+            if [[ ! "$commit" =~ ^(feat|fix|refactor|docs|test|chore|perf)(\(.+\))?:[[:space:]].+ ]]; then
+              INVALID_COMMITS+=("$commit")
+            fi
+          done <<< "$COMMITS"
+
+          if [ ${#INVALID_COMMITS[@]} -gt 0 ]; then
+            echo "⚠️  Some commits do not follow conventional commit format"
+            echo "Expected: type(scope): description"
+            echo "Example: feat(game-setup): add team roster input"
+            echo ""
+            echo "Invalid commits:"
+            printf '%s\n' "${INVALID_COMMITS[@]}"
+            echo ""
+            echo "This won't fail the PR, but please consider using conventional commits"
+            # Don't fail - just warn since commits can be squashed
+          else
+            echo "✅ All commits follow conventional format"
+          fi

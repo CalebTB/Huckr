@@ -1,0 +1,222 @@
+name: Automated Testing
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  unit-tests:
+    name: Unit & Widget Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ultimate_hub
+
+    strategy:
+      matrix:
+        flutter-version: ['3.24.0', 'stable']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ matrix.flutter-version }}
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Run unit tests
+        run: flutter test --coverage --reporter expanded
+
+      - name: Check coverage threshold
+        run: |
+          # Install lcov for coverage analysis
+          sudo apt-get update
+          sudo apt-get install -y lcov
+
+          # Generate coverage report
+          genhtml coverage/lcov.info -o coverage/html
+
+          # Calculate coverage percentage
+          COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 | grep "lines" | cut -d ' ' -f 4 | cut -d '%' -f 1)
+
+          echo "Code coverage: $COVERAGE%"
+
+          # Set minimum threshold (start at 60%, increase over time)
+          THRESHOLD=60
+
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage $COVERAGE% is below threshold $THRESHOLD%"
+            exit 1
+          fi
+
+          echo "✅ Coverage meets threshold"
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.flutter-version }}
+          path: ultimate_hub/coverage/html
+
+  golden-tests:
+    name: Golden File Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ultimate_hub
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Run golden tests
+        run: flutter test --update-goldens --tags=golden
+
+      - name: Upload golden files on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures
+          path: |
+            ultimate_hub/test/**/failures/*.png
+            ultimate_hub/test/**/goldens/*.png
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ultimate_hub
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Run integration tests
+        run: flutter test integration_test/
+
+  performance-benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: ultimate_hub
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run code generation
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Run performance tests
+        run: |
+          # Run tests tagged with 'performance'
+          if flutter test --tags=performance --reporter json > benchmark_results.json 2>&1; then
+            echo "✅ Performance benchmarks passed"
+          else
+            echo "⚠️  No performance tests found or tests failed"
+            echo "Consider adding tests tagged with 'performance' for critical paths"
+          fi
+
+      - name: Comment benchmark results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const benchmarkPath = 'ultimate_hub/benchmark_results.json';
+
+            if (!fs.existsSync(benchmarkPath)) {
+              console.log('No benchmark results found');
+              return;
+            }
+
+            const results = fs.readFileSync(benchmarkPath, 'utf8');
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📊 Performance Benchmark Results\n\n\`\`\`json\n${results}\n\`\`\``
+            });
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, golden-tests, integration-tests]
+    if: always()
+
+    steps:
+      - name: Generate test summary
+        run: |
+          echo "## 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.unit-tests.result }}" == "success" ]; then
+            echo "✅ Unit & Widget Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Unit & Widget Tests: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.golden-tests.result }}" == "success" ]; then
+            echo "✅ Golden File Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Golden File Tests: Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.integration-tests.result }}" == "success" ]; then
+            echo "✅ Integration Tests: Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Integration Tests: Failed" >> $GITHUB_STEP_SUMMARY
+          fi

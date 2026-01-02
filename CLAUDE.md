@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Ultimate Hub is an ultimate frisbee tournament management and live game tracking app built with Flutter and Firebase. The goal is to become the all-in-one platform for ultimate frisbee, filling the gap left by abandoned apps (UltiAnalytics removed from Google Play March 2024), clunky governing body software (USA Ultimate Score Reporter), and persistent spreadsheet workflows.
+Ultimate Hub is an ultimate frisbee tournament management and live game tracking app built with Flutter and Supabase. The goal is to become the all-in-one platform for ultimate frisbee, filling the gap left by abandoned apps (UltiAnalytics removed from Google Play March 2024), clunky governing body software (USA Ultimate Score Reporter), and persistent spreadsheet workflows.
 
 **Target Market**: 63,000+ USA Ultimate members, 3+ million casual players, highly educated demographic (90% attended university), spending ~$1,000 annually on the sport.
 
@@ -69,7 +69,7 @@ ultimate_hub/lib/
 
 - **State Management**: Riverpod 2.0 with code generation
 - **Local Storage**: Hive (offline-first, critical for field use without connectivity)
-- **Remote**: Firebase (Firestore + Realtime Database for live tracking)
+- **Remote Backend**: Supabase (PostgreSQL + Realtime for live tracking and sync)
 - **Code Generation**: Freezed for immutable entities, JSON serialization
 
 ## Development Phases
@@ -83,7 +83,7 @@ ultimate_hub/lib/
 - End-of-game summary with top performers
 
 ### Phase 2: Team & Player Management
-- Authentication (Firebase Auth)
+- Authentication (Supabase Auth)
 - Team creation and roster management
 - Player profiles with career stats across seasons
 - Spirit of the Game scoring (WFDF 5-category system)
@@ -126,7 +126,7 @@ Use specialized agents for domain expertise:
 | Task | Agent |
 |------|-------|
 | Widget/screen implementation | `flutter-expert` |
-| Database/auth design | `firebase-expert` |
+| Database/auth design | Use Supabase MCP for database operations |
 | Rule accuracy & player perspective | `ultimate-frisbee-guru` |
 | Issue/branch/commit/PR | `github-project-orchestrator` |
 | UI design decisions | `ui-design-expert` |
@@ -156,7 +156,8 @@ Before committing:
 
 ## Key Documentation Files
 
-- `ARCHITECTURE.md` - Full technical architecture and database schema
+- `ultimate_hub/ARCHITECTURE.md` - Full technical architecture and database schema
+- `UltimateHub_FullStack_Flutter_Supabase.md` - Complete Supabase integration guide
 - `mock_designs/GoldenHourThemeGuide.md` - Complete theme specification
 - `UltimateHub_Phase1_Phase2_Development_Guide.md` - Detailed Phase 1 & 2 specs
 - `UltimateHub_Phase3_TechnicalSpecs.md` - Tournament management specs
