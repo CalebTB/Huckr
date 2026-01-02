@@ -5,3 +5,7 @@ mock_designs/
 
 # Claude configuration
 .claude/
+
+# Wiki content (published to GitHub wiki separately)
+wiki-content/
+WIKI_SETUP_GUIDE.md
