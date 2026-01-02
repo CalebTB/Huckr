@@ -1,1 +1,7 @@
 .DS_Store
+
+# Mock designs directory
+mock_designs/
+
+# Claude configuration
+.claude/
