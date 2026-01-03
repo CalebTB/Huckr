@@ -61,6 +61,7 @@ class Game with _$Game {
     @Default(false) bool isBeingTracked,
     String? trackedByUserId,
     String? trackedByUserName,
+    @Default(true) bool isSimpleTracking, // Simple mode = faster entry, Advanced = full stats
 
     // Sync
     @Default(false) bool isSynced,

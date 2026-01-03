@@ -59,6 +59,7 @@ _$GameImpl _$$GameImplFromJson(Map<String, dynamic> json) => _$GameImpl(
       isBeingTracked: json['isBeingTracked'] as bool? ?? false,
       trackedByUserId: json['trackedByUserId'] as String?,
       trackedByUserName: json['trackedByUserName'] as String?,
+      isSimpleTracking: json['isSimpleTracking'] as bool? ?? true,
       isSynced: json['isSynced'] as bool? ?? false,
       lastSyncedAt: json['lastSyncedAt'] == null
           ? null
@@ -105,6 +106,7 @@ Map<String, dynamic> _$$GameImplToJson(_$GameImpl instance) =>
       'isBeingTracked': instance.isBeingTracked,
       'trackedByUserId': instance.trackedByUserId,
       'trackedByUserName': instance.trackedByUserName,
+      'isSimpleTracking': instance.isSimpleTracking,
       'isSynced': instance.isSynced,
       'lastSyncedAt': instance.lastSyncedAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),

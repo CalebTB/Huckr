@@ -38,6 +38,9 @@ class _GameSetupScreenState extends ConsumerState<GameSetupScreen> {
   // Which team is tracking
   String _trackingFor = 'home'; // 'home' or 'away'
 
+  // Tracking mode
+  bool _isSimpleTracking = true; // true = simple, false = advanced
+
   // Loading state
   bool _isCreating = false;
   
@@ -104,9 +107,44 @@ class _GameSetupScreenState extends ConsumerState<GameSetupScreen> {
               isTracking: _trackingFor == 'away',
               onTrackingChanged: () => setState(() => _trackingFor = 'away'),
             ),
-            
+
             const SizedBox(height: 32),
-            
+
+            // Tracking Mode Section
+            const _SectionHeader(title: 'Tracking Mode'),
+            const SizedBox(height: 16),
+
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(
+                  value: true,
+                  label: Text('Simple'),
+                  icon: Icon(Icons.speed),
+                ),
+                ButtonSegment<bool>(
+                  value: false,
+                  label: Text('Advanced'),
+                  icon: Icon(Icons.analytics),
+                ),
+              ],
+              selected: {_isSimpleTracking},
+              onSelectionChanged: (Set<bool> selected) {
+                setState(() => _isSimpleTracking = selected.first);
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _isSimpleTracking
+                  ? 'Quick score tracking with goal scorers & assists'
+                  : 'Full stats: pulls, field position, assists, play-by-play',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.gray500,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 32),
+
             // Game Settings Section
             const _SectionHeader(title: 'Game Settings'),
             const SizedBox(height: 16),
@@ -268,6 +306,7 @@ class _GameSetupScreenState extends ConsumerState<GameSetupScreen> {
         windSpeed: _windSpeed != 'calm' ? _windSpeed : null,
         windDirection: _windDirection,
         isBeingTracked: true,
+        isSimpleTracking: _isSimpleTracking,
         isSynced: false,
         createdAt: now,
         updatedAt: now,

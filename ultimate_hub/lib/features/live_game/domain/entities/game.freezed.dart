@@ -57,7 +57,10 @@ mixin _$Game {
   String? get weatherNotes => throw _privateConstructorUsedError; // Tracking
   bool get isBeingTracked => throw _privateConstructorUsedError;
   String? get trackedByUserId => throw _privateConstructorUsedError;
-  String? get trackedByUserName => throw _privateConstructorUsedError; // Sync
+  String? get trackedByUserName => throw _privateConstructorUsedError;
+  bool get isSimpleTracking =>
+      throw _privateConstructorUsedError; // Simple mode = faster entry, Advanced = full stats
+// Sync
   bool get isSynced => throw _privateConstructorUsedError;
   DateTime? get lastSyncedAt => throw _privateConstructorUsedError;
   DateTime get createdAt => throw _privateConstructorUsedError;
@@ -110,6 +113,7 @@ abstract class $GameCopyWith<$Res> {
       bool isBeingTracked,
       String? trackedByUserId,
       String? trackedByUserName,
+      bool isSimpleTracking,
       bool isSynced,
       DateTime? lastSyncedAt,
       DateTime createdAt,
@@ -165,6 +169,7 @@ class _$GameCopyWithImpl<$Res, $Val extends Game>
     Object? isBeingTracked = null,
     Object? trackedByUserId = freezed,
     Object? trackedByUserName = freezed,
+    Object? isSimpleTracking = null,
     Object? isSynced = null,
     Object? lastSyncedAt = freezed,
     Object? createdAt = null,
@@ -315,6 +320,10 @@ class _$GameCopyWithImpl<$Res, $Val extends Game>
           ? _value.trackedByUserName
           : trackedByUserName // ignore: cast_nullable_to_non_nullable
               as String?,
+      isSimpleTracking: null == isSimpleTracking
+          ? _value.isSimpleTracking
+          : isSimpleTracking // ignore: cast_nullable_to_non_nullable
+              as bool,
       isSynced: null == isSynced
           ? _value.isSynced
           : isSynced // ignore: cast_nullable_to_non_nullable
@@ -379,6 +388,7 @@ abstract class _$$GameImplCopyWith<$Res> implements $GameCopyWith<$Res> {
       bool isBeingTracked,
       String? trackedByUserId,
       String? trackedByUserName,
+      bool isSimpleTracking,
       bool isSynced,
       DateTime? lastSyncedAt,
       DateTime createdAt,
@@ -431,6 +441,7 @@ class __$$GameImplCopyWithImpl<$Res>
     Object? isBeingTracked = null,
     Object? trackedByUserId = freezed,
     Object? trackedByUserName = freezed,
+    Object? isSimpleTracking = null,
     Object? isSynced = null,
     Object? lastSyncedAt = freezed,
     Object? createdAt = null,
@@ -581,6 +592,10 @@ class __$$GameImplCopyWithImpl<$Res>
           ? _value.trackedByUserName
           : trackedByUserName // ignore: cast_nullable_to_non_nullable
               as String?,
+      isSimpleTracking: null == isSimpleTracking
+          ? _value.isSimpleTracking
+          : isSimpleTracking // ignore: cast_nullable_to_non_nullable
+              as bool,
       isSynced: null == isSynced
           ? _value.isSynced
           : isSynced // ignore: cast_nullable_to_non_nullable
@@ -641,6 +656,7 @@ class _$GameImpl implements _Game {
       this.isBeingTracked = false,
       this.trackedByUserId,
       this.trackedByUserName,
+      this.isSimpleTracking = true,
       this.isSynced = false,
       this.lastSyncedAt,
       required this.createdAt,
@@ -741,6 +757,10 @@ class _$GameImpl implements _Game {
   final String? trackedByUserId;
   @override
   final String? trackedByUserName;
+  @override
+  @JsonKey()
+  final bool isSimpleTracking;
+// Simple mode = faster entry, Advanced = full stats
 // Sync
   @override
   @JsonKey()
@@ -754,7 +774,7 @@ class _$GameImpl implements _Game {
 
   @override
   String toString() {
-    return 'Game(id: $id, tournamentId: $tournamentId, poolId: $poolId, bracketPosition: $bracketPosition, homeTeamId: $homeTeamId, awayTeamId: $awayTeamId, homeTeamName: $homeTeamName, awayTeamName: $awayTeamName, homeTeamLogo: $homeTeamLogo, awayTeamLogo: $awayTeamLogo, homeScore: $homeScore, awayScore: $awayScore, gameToPoints: $gameToPoints, hardCapPoints: $hardCapPoints, halftimeAt: $halftimeAt, softCapMinutes: $softCapMinutes, hardCapMinutes: $hardCapMinutes, status: $status, currentPoint: $currentPoint, currentPossession: $currentPossession, scheduledAt: $scheduledAt, startedAt: $startedAt, halftimeStartedAt: $halftimeStartedAt, softCapStartedAt: $softCapStartedAt, hardCapStartedAt: $hardCapStartedAt, endedAt: $endedAt, isDelayed: $isDelayed, delayReason: $delayReason, delayNotes: $delayNotes, delayStartedAt: $delayStartedAt, windSpeed: $windSpeed, windDirection: $windDirection, weatherNotes: $weatherNotes, isBeingTracked: $isBeingTracked, trackedByUserId: $trackedByUserId, trackedByUserName: $trackedByUserName, isSynced: $isSynced, lastSyncedAt: $lastSyncedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Game(id: $id, tournamentId: $tournamentId, poolId: $poolId, bracketPosition: $bracketPosition, homeTeamId: $homeTeamId, awayTeamId: $awayTeamId, homeTeamName: $homeTeamName, awayTeamName: $awayTeamName, homeTeamLogo: $homeTeamLogo, awayTeamLogo: $awayTeamLogo, homeScore: $homeScore, awayScore: $awayScore, gameToPoints: $gameToPoints, hardCapPoints: $hardCapPoints, halftimeAt: $halftimeAt, softCapMinutes: $softCapMinutes, hardCapMinutes: $hardCapMinutes, status: $status, currentPoint: $currentPoint, currentPossession: $currentPossession, scheduledAt: $scheduledAt, startedAt: $startedAt, halftimeStartedAt: $halftimeStartedAt, softCapStartedAt: $softCapStartedAt, hardCapStartedAt: $hardCapStartedAt, endedAt: $endedAt, isDelayed: $isDelayed, delayReason: $delayReason, delayNotes: $delayNotes, delayStartedAt: $delayStartedAt, windSpeed: $windSpeed, windDirection: $windDirection, weatherNotes: $weatherNotes, isBeingTracked: $isBeingTracked, trackedByUserId: $trackedByUserId, trackedByUserName: $trackedByUserName, isSimpleTracking: $isSimpleTracking, isSynced: $isSynced, lastSyncedAt: $lastSyncedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -830,6 +850,8 @@ class _$GameImpl implements _Game {
                 other.trackedByUserId == trackedByUserId) &&
             (identical(other.trackedByUserName, trackedByUserName) ||
                 other.trackedByUserName == trackedByUserName) &&
+            (identical(other.isSimpleTracking, isSimpleTracking) ||
+                other.isSimpleTracking == isSimpleTracking) &&
             (identical(other.isSynced, isSynced) ||
                 other.isSynced == isSynced) &&
             (identical(other.lastSyncedAt, lastSyncedAt) ||
@@ -880,6 +902,7 @@ class _$GameImpl implements _Game {
         isBeingTracked,
         trackedByUserId,
         trackedByUserName,
+        isSimpleTracking,
         isSynced,
         lastSyncedAt,
         createdAt,
@@ -938,6 +961,7 @@ abstract class _Game implements Game {
       final bool isBeingTracked,
       final String? trackedByUserId,
       final String? trackedByUserName,
+      final bool isSimpleTracking,
       final bool isSynced,
       final DateTime? lastSyncedAt,
       required final DateTime createdAt,
@@ -1018,7 +1042,10 @@ abstract class _Game implements Game {
   String? get trackedByUserId;
   @override
   String? get trackedByUserName;
-  @override // Sync
+  @override
+  bool get isSimpleTracking;
+  @override // Simple mode = faster entry, Advanced = full stats
+// Sync
   bool get isSynced;
   @override
   DateTime? get lastSyncedAt;
