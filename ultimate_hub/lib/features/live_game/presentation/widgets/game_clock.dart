@@ -52,21 +52,43 @@ class _GameClockState extends State<GameClock> {
   @override
   Widget build(BuildContext context) {
     final elapsed = widget.stopwatch.elapsed;
-    final minutes = elapsed.inMinutes;
-    final seconds = elapsed.inSeconds % 60;
-    final timeString = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    
-    // Determine cap status
-    final capStatus = _getCapStatus(minutes);
-    
-    if (widget.compact) {
-      return _buildCompactClock(context, timeString, capStatus);
+    final elapsedMinutes = elapsed.inMinutes;
+    final elapsedSeconds = elapsed.inSeconds;
+
+    final softCapSeconds = (widget.softCapMinutes ?? 75) * 60;
+    final hardCapSeconds = (widget.hardCapMinutes ?? 90) * 60;
+
+    // Determine cap status and countdown time
+    final capStatus = _getCapStatus(elapsedMinutes);
+    int remainingSeconds;
+    String timeLabel;
+
+    if (elapsedSeconds >= hardCapSeconds) {
+      // Hard cap reached - show time over hard cap
+      remainingSeconds = elapsedSeconds - hardCapSeconds;
+      timeLabel = 'OVERTIME';
+    } else if (elapsedSeconds >= softCapSeconds) {
+      // In hard cap countdown - show time until hard cap
+      remainingSeconds = hardCapSeconds - elapsedSeconds;
+      timeLabel = 'TO HARD CAP';
+    } else {
+      // In soft cap countdown - show time until soft cap
+      remainingSeconds = softCapSeconds - elapsedSeconds;
+      timeLabel = 'TO SOFT CAP';
     }
-    
-    return _buildFullClock(context, timeString, capStatus, minutes);
+
+    final minutes = remainingSeconds.abs() ~/ 60;
+    final seconds = remainingSeconds.abs() % 60;
+    final timeString = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    if (widget.compact) {
+      return _buildCompactClock(context, timeString, capStatus, timeLabel);
+    }
+
+    return _buildFullClock(context, timeString, capStatus, minutes, timeLabel, elapsedMinutes);
   }
 
-  Widget _buildFullClock(BuildContext context, String timeString, _CapStatus capStatus, int minutes) {
+  Widget _buildFullClock(BuildContext context, String timeString, _CapStatus capStatus, int minutes, String timeLabel, int elapsedMinutes) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
@@ -81,12 +103,23 @@ class _GameClockState extends State<GameClock> {
             ),
             color: AppTheme.primaryGreen,
           ),
-          
+
           const SizedBox(width: 16),
-          
+
           // Time display
           Column(
             children: [
+              // Time label (TO SOFT CAP / TO HARD CAP / OVERTIME)
+              Text(
+                timeLabel,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: capStatus.color,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              // Countdown time
               Text(
                 timeString,
                 style: AppStyles.clockStyle(context).copyWith(
@@ -111,21 +144,21 @@ class _GameClockState extends State<GameClock> {
                 ),
             ],
           ),
-          
+
           const SizedBox(width: 16),
-          
+
           // Cap indicator
           _CapIndicator(
             softCapMinutes: widget.softCapMinutes ?? 75,
             hardCapMinutes: widget.hardCapMinutes ?? 90,
-            currentMinutes: minutes,
+            currentMinutes: elapsedMinutes,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCompactClock(BuildContext context, String timeString, _CapStatus capStatus) {
+  Widget _buildCompactClock(BuildContext context, String timeString, _CapStatus capStatus, String timeLabel) {
     return InkWell(
       onTap: widget.onToggle,
       borderRadius: BorderRadius.circular(8),
@@ -138,41 +171,58 @@ class _GameClockState extends State<GameClock> {
             color: capStatus.color.withValues(alpha:0.3),
           ),
         ),
-        child: Row(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              widget.isRunning ? Icons.pause : Icons.play_arrow,
-              size: 20,
-              color: capStatus.color,
-            ),
-            const SizedBox(width: 8),
+            // Time label
             Text(
-              timeString,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              timeLabel,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: capStatus.color,
                 fontWeight: FontWeight.w600,
-                fontFamily: 'JetBrainsMono',
+                letterSpacing: 1.0,
+                fontSize: 10,
               ),
             ),
-            if (capStatus.label != null) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
+            const SizedBox(height: 4),
+            // Timer row
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  widget.isRunning ? Icons.pause : Icons.play_arrow,
+                  size: 20,
                   color: capStatus.color,
-                  borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(
-                  capStatus.label!,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.white,
+                const SizedBox(width: 8),
+                Text(
+                  timeString,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: capStatus.color,
                     fontWeight: FontWeight.w600,
-                    fontSize: 9,
+                    fontFamily: 'JetBrainsMono',
                   ),
                 ),
-              ),
-            ],
+                if (capStatus.label != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: capStatus.color,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      capStatus.label!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),
@@ -182,7 +232,7 @@ class _GameClockState extends State<GameClock> {
   _CapStatus _getCapStatus(int minutes) {
     final softCap = widget.softCapMinutes ?? 75;
     final hardCap = widget.hardCapMinutes ?? 90;
-    
+
     if (minutes >= hardCap) {
       return _CapStatus(
         color: AppTheme.error,
@@ -196,13 +246,13 @@ class _GameClockState extends State<GameClock> {
     } else if (minutes >= softCap - 5) {
       // Warning: 5 minutes before soft cap
       return _CapStatus(
-        color: AppTheme.accentOrange,
+        color: AppTheme.accent,
         label: null,
       );
     }
-    
+
     return _CapStatus(
-      color: Colors.white,
+      color: AppTheme.textPrimary,
       label: null,
     );
   }
