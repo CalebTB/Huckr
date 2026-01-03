@@ -5,6 +5,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/constants/wind_conditions.dart';
+import '../../../../core/constants/game_rules.dart';
+import '../../../../core/providers/data_providers.dart';
+import '../../../../core/enums/game_status.dart';
+import '../../domain/entities/game.dart';
 
 /// Game Setup Screen - Configure game before tracking
 class GameSetupScreen extends ConsumerStatefulWidget {
@@ -30,9 +34,12 @@ class _GameSetupScreenState extends ConsumerState<GameSetupScreen> {
   // Wind conditions
   String _windSpeed = 'calm';
   String _windDirection = 'N';
-  
+
   // Which team is tracking
   String _trackingFor = 'home'; // 'home' or 'away'
+
+  // Loading state
+  bool _isCreating = false;
   
   @override
   void dispose() {
@@ -188,15 +195,21 @@ class _GameSetupScreenState extends ConsumerState<GameSetupScreen> {
             SizedBox(
               height: 56,
               child: ElevatedButton(
-                onPressed: _startGame,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.play_arrow),
-                    SizedBox(width: 8),
-                    Text('Start Tracking'),
-                  ],
-                ),
+                onPressed: _isCreating ? null : _startGame,
+                child: _isCreating
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.play_arrow),
+                          SizedBox(width: 8),
+                          Text('Start Tracking'),
+                        ],
+                      ),
               ),
             ),
             
@@ -217,21 +230,91 @@ class _GameSetupScreenState extends ConsumerState<GameSetupScreen> {
     );
   }
 
-  void _startGame() {
+  Future<void> _startGame() async {
+    // Set default team names if empty
     if (_homeTeamController.text.isEmpty) {
       _homeTeamController.text = 'Home Team';
     }
     if (_awayTeamController.text.isEmpty) {
       _awayTeamController.text = 'Away Team';
     }
-    
-    // Generate game ID
-    final gameId = const Uuid().v4();
-    
-    // TODO: Save game to local storage and state management
-    // For now, navigate to tracking screen
-    
-    context.go('/game/track/$gameId');
+
+    // Set loading state
+    setState(() => _isCreating = true);
+
+    try {
+      // Generate IDs
+      final gameId = const Uuid().v4();
+      final homeTeamId = const Uuid().v4();
+      final awayTeamId = const Uuid().v4();
+      final now = DateTime.now();
+
+      // Create Game entity
+      final game = Game(
+        id: gameId,
+        homeTeamId: homeTeamId,
+        awayTeamId: awayTeamId,
+        homeTeamName: _homeTeamController.text,
+        awayTeamName: _awayTeamController.text,
+        homeScore: 0,
+        awayScore: 0,
+        gameToPoints: _gameToPoints,
+        hardCapPoints: _hardCapPoints,
+        halftimeAt: GameRules.defaultHalftimeAt,
+        softCapMinutes: _softCapMinutes,
+        hardCapMinutes: _hardCapMinutes,
+        status: GameStatus.scheduled,
+        currentPoint: 1,
+        windSpeed: _windSpeed != 'calm' ? _windSpeed : null,
+        windDirection: _windDirection,
+        isBeingTracked: true,
+        isSynced: false,
+        createdAt: now,
+        updatedAt: now,
+        isDelayed: false,
+      );
+
+      // Persist game using repository
+      final repository = ref.read(gameRepositoryProvider);
+      final result = await repository.createGame(game);
+
+      result.fold(
+        // Error case
+        (failure) {
+          if (mounted) {
+            setState(() => _isCreating = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to create game: ${failure.message}'),
+                backgroundColor: Colors.red,
+                action: SnackBarAction(
+                  label: 'Retry',
+                  textColor: Colors.white,
+                  onPressed: _startGame,
+                ),
+              ),
+            );
+          }
+        },
+        // Success case
+        (createdGame) {
+          if (mounted) {
+            setState(() => _isCreating = false);
+            context.go('/game/track/${createdGame.id}');
+          }
+        },
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCreating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unexpected error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _quickStart() {
