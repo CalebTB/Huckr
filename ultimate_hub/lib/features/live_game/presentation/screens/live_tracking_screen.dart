@@ -10,6 +10,7 @@ import '../../../../core/enums/game_status.dart';
 import '../../domain/entities/game.dart';
 import '../providers/live_game_provider.dart';
 import '../providers/play_log_provider.dart';
+import '../providers/player_roster_provider.dart';
 import '../widgets/possession_chain.dart';
 import '../widgets/player_roster_buttons.dart';
 import '../widgets/terminal_outcome_buttons.dart';
@@ -58,9 +59,63 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
     // Start UI update timer to refresh countdown every second
     _startUiUpdateTimer();
 
-    // Ensure game is in progress status
+    // Initialize tracking mode based on game settings
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final game = await ref.read(liveGameProvider(widget.gameId).future);
+
+      // If game was created in Advanced mode, enable player tracking
+      if (!game.isSimpleTracking && mounted) {
+        setState(() {
+          _trackPlayers = true;
+        });
+
+        // Add test players for fitment testing
+        final rosterNotifier = ref.read(playerRosterProvider.notifier);
+        rosterNotifier.addPlayer(
+          teamId: game.homeTeamId,
+          name: 'Sarah',
+          jerseyNumber: '7',
+          isDefense: false,
+        );
+        rosterNotifier.addPlayer(
+          teamId: game.homeTeamId,
+          name: 'Mike',
+          jerseyNumber: '23',
+          isDefense: false,
+        );
+        rosterNotifier.addPlayer(
+          teamId: game.homeTeamId,
+          name: 'Jordan',
+          jerseyNumber: '5',
+          isDefense: false,
+        );
+        rosterNotifier.addPlayer(
+          teamId: game.homeTeamId,
+          name: 'Alex',
+          jerseyNumber: '15',
+          isDefense: false,
+        );
+        rosterNotifier.addPlayer(
+          teamId: game.homeTeamId,
+          name: 'Taylor',
+          jerseyNumber: '88',
+          isDefense: false,
+        );
+        rosterNotifier.addPlayer(
+          teamId: game.homeTeamId,
+          name: 'Casey',
+          jerseyNumber: '42',
+          isDefense: false,
+        );
+        rosterNotifier.addPlayer(
+          teamId: game.homeTeamId,
+          name: 'Morgan',
+          jerseyNumber: '11',
+          isDefense: false,
+        );
+      }
+
+      // Ensure game is in progress status
       if (game.status == GameStatus.scheduled || game.status == GameStatus.warmup) {
         print('🎮 Setting game to inProgress');
         await ref.read(liveGameProvider(widget.gameId).notifier).beginPlay();
@@ -171,55 +226,66 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
               ),
 
             // ADVANCED MODE: Player tracking UI
-            if (_trackPlayers) ...[
-              PossessionChain(
-                gameId: widget.gameId,
-                showPullIndicator: playLogState.possessionChain.isEmpty &&
-                    game.currentPoint == 1,
-              ),
-              const SizedBox(height: 8),
+            if (_trackPlayers)
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: PlayerRosterButtons(
-                    gameId: widget.gameId,
-                    teamId: game.currentPossession ?? game.homeTeamId,
-                    isDefense: false,
-                    onPlayerTap: (player) {
-                      ref
-                          .read(playLogProvider(widget.gameId).notifier)
-                          .addPlayerToChain(player);
-                    },
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      PossessionChain(
+                        gameId: widget.gameId,
+                        showPullIndicator: playLogState.possessionChain.isEmpty &&
+                            game.currentPoint == 1,
+                      ),
+                      const SizedBox(height: 8),
+                      // Player roster with fixed height (scrollable internally)
+                      SizedBox(
+                        height: _showPlayByPlay ? 180 : 320,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: PlayerRosterButtons(
+                            gameId: widget.gameId,
+                            teamId: game.currentPossession ?? game.homeTeamId,
+                            isDefense: false,
+                            onPlayerTap: (player) {
+                              ref
+                                  .read(playLogProvider(widget.gameId).notifier)
+                                  .addPlayerToChain(player);
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildPlayByPlayToggle(playLogState.plays.length),
+                      if (_showPlayByPlay)
+                        SizedBox(
+                          height: 140,
+                          child: PlayByPlayFeed(
+                            plays: playLogState.plays
+                                .map((p) => {
+                                      'type': p.type.displayName,
+                                      'playType': p.type,
+                                      'player': p.playerName ?? 'Unknown',
+                                      'timestamp': p.timestamp,
+                                    })
+                                .toList(),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      TerminalOutcomeButtons(
+                        chainIsEmpty: playLogState.possessionChain.isEmpty,
+                        onGoal: () => _handleGoal(game),
+                        onDrop: () => _handleTurnover(game, PlayType.drop),
+                        onThrowaway: () => _handleTurnover(game, PlayType.throwaway),
+                        onStall: () => _handleTurnover(game, PlayType.stall),
+                        onOutOfBounds: () => _handleTurnover(game, PlayType.outOfBounds),
+                        onBlock: () => _handleBlock(game),
+                        onTimeout: () => _handleTimeout(game),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              _buildPlayByPlayToggle(playLogState.plays.length),
-              if (_showPlayByPlay)
-                SizedBox(
-                  height: 200,
-                  child: PlayByPlayFeed(
-                    plays: playLogState.plays
-                        .map((p) => {
-                              'type': p.type.displayName,
-                              'playType': p.type,
-                              'player': p.playerName ?? 'Unknown',
-                              'timestamp': p.timestamp,
-                            })
-                        .toList(),
-                  ),
-                ),
-              TerminalOutcomeButtons(
-                chainIsEmpty: playLogState.possessionChain.isEmpty,
-                onGoal: () => _handleGoal(game),
-                onDrop: () => _handleTurnover(game, PlayType.drop),
-                onThrowaway: () => _handleTurnover(game, PlayType.throwaway),
-                onStall: () => _handleTurnover(game, PlayType.stall),
-                onOutOfBounds: () => _handleTurnover(game, PlayType.outOfBounds),
-                onBlock: () => _handleBlock(game),
-                onTimeout: () => _handleTimeout(game),
-              ),
-            ],
           ],
             ),
           ],
