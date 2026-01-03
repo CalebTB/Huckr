@@ -13,7 +13,6 @@ import '../providers/play_log_provider.dart';
 import '../widgets/possession_chain.dart';
 import '../widgets/player_roster_buttons.dart';
 import '../widgets/terminal_outcome_buttons.dart';
-import '../widgets/goal_zone_picker.dart';
 import '../widgets/score_board.dart';
 import '../widgets/play_by_play_feed.dart';
 import '../widgets/simple_score_buttons.dart';
@@ -459,20 +458,12 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
 
     // Only track play details if player tracking is enabled
     if (_trackPlayers) {
-      // Optionally ask for zone
-      String? zone;
-      if (mounted) {
-        zone = await showDialog<String>(
-          context: context,
-          builder: (context) => const GoalZonePicker(),
-        );
-      }
-
       // Record goal with auto-tracked assists
+      // Note: Zone tracking removed - can add Red Zone tracking later if needed
       await playLogNotifier.recordGoal(
         gameId: widget.gameId,
         currentPoint: game.currentPoint,
-        zone: zone,
+        zone: null,
       );
     }
 
