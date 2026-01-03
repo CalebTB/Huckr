@@ -31,10 +31,17 @@ mixin _$Game {
   String? get homeTeamLogo => throw _privateConstructorUsedError;
   String? get awayTeamLogo => throw _privateConstructorUsedError; // Score
   int get homeScore => throw _privateConstructorUsedError;
-  int get awayScore => throw _privateConstructorUsedError; // Game settings
-  int get gameToPoints => throw _privateConstructorUsedError;
+  int get awayScore => throw _privateConstructorUsedError;
+  int? get halftimeHomeScore => throw _privateConstructorUsedError;
+  int? get halftimeAwayScore =>
+      throw _privateConstructorUsedError; // Game settings
+  int get gameToPoints =>
+      throw _privateConstructorUsedError; // Current target (changes when caps hit)
+  int? get originalGameToPoints =>
+      throw _privateConstructorUsedError; // Original target (for halftime calculation), null = same as gameToPoints
   int get hardCapPoints => throw _privateConstructorUsedError;
-  int get halftimeAt => throw _privateConstructorUsedError;
+  int? get halftimeAtOverride =>
+      throw _privateConstructorUsedError; // Optional override, null = use formula: (gameToPoints / 2).ceil()
   int get softCapMinutes => throw _privateConstructorUsedError;
   int get hardCapMinutes => throw _privateConstructorUsedError; // Status
   GameStatus get status => throw _privateConstructorUsedError;
@@ -54,7 +61,10 @@ mixin _$Game {
       throw _privateConstructorUsedError; // Conditions
   String? get windSpeed => throw _privateConstructorUsedError;
   String? get windDirection => throw _privateConstructorUsedError;
-  String? get weatherNotes => throw _privateConstructorUsedError; // Tracking
+  String? get weatherNotes => throw _privateConstructorUsedError;
+  String? get gameNotes =>
+      throw _privateConstructorUsedError; // Post-game notes (injuries, notable plays, comments)
+// Tracking
   bool get isBeingTracked => throw _privateConstructorUsedError;
   String? get trackedByUserId => throw _privateConstructorUsedError;
   String? get trackedByUserName => throw _privateConstructorUsedError;
@@ -89,9 +99,12 @@ abstract class $GameCopyWith<$Res> {
       String? awayTeamLogo,
       int homeScore,
       int awayScore,
+      int? halftimeHomeScore,
+      int? halftimeAwayScore,
       int gameToPoints,
+      int? originalGameToPoints,
       int hardCapPoints,
-      int halftimeAt,
+      int? halftimeAtOverride,
       int softCapMinutes,
       int hardCapMinutes,
       GameStatus status,
@@ -110,6 +123,7 @@ abstract class $GameCopyWith<$Res> {
       String? windSpeed,
       String? windDirection,
       String? weatherNotes,
+      String? gameNotes,
       bool isBeingTracked,
       String? trackedByUserId,
       String? trackedByUserName,
@@ -145,9 +159,12 @@ class _$GameCopyWithImpl<$Res, $Val extends Game>
     Object? awayTeamLogo = freezed,
     Object? homeScore = null,
     Object? awayScore = null,
+    Object? halftimeHomeScore = freezed,
+    Object? halftimeAwayScore = freezed,
     Object? gameToPoints = null,
+    Object? originalGameToPoints = freezed,
     Object? hardCapPoints = null,
-    Object? halftimeAt = null,
+    Object? halftimeAtOverride = freezed,
     Object? softCapMinutes = null,
     Object? hardCapMinutes = null,
     Object? status = null,
@@ -166,6 +183,7 @@ class _$GameCopyWithImpl<$Res, $Val extends Game>
     Object? windSpeed = freezed,
     Object? windDirection = freezed,
     Object? weatherNotes = freezed,
+    Object? gameNotes = freezed,
     Object? isBeingTracked = null,
     Object? trackedByUserId = freezed,
     Object? trackedByUserName = freezed,
@@ -224,18 +242,30 @@ class _$GameCopyWithImpl<$Res, $Val extends Game>
           ? _value.awayScore
           : awayScore // ignore: cast_nullable_to_non_nullable
               as int,
+      halftimeHomeScore: freezed == halftimeHomeScore
+          ? _value.halftimeHomeScore
+          : halftimeHomeScore // ignore: cast_nullable_to_non_nullable
+              as int?,
+      halftimeAwayScore: freezed == halftimeAwayScore
+          ? _value.halftimeAwayScore
+          : halftimeAwayScore // ignore: cast_nullable_to_non_nullable
+              as int?,
       gameToPoints: null == gameToPoints
           ? _value.gameToPoints
           : gameToPoints // ignore: cast_nullable_to_non_nullable
               as int,
+      originalGameToPoints: freezed == originalGameToPoints
+          ? _value.originalGameToPoints
+          : originalGameToPoints // ignore: cast_nullable_to_non_nullable
+              as int?,
       hardCapPoints: null == hardCapPoints
           ? _value.hardCapPoints
           : hardCapPoints // ignore: cast_nullable_to_non_nullable
               as int,
-      halftimeAt: null == halftimeAt
-          ? _value.halftimeAt
-          : halftimeAt // ignore: cast_nullable_to_non_nullable
-              as int,
+      halftimeAtOverride: freezed == halftimeAtOverride
+          ? _value.halftimeAtOverride
+          : halftimeAtOverride // ignore: cast_nullable_to_non_nullable
+              as int?,
       softCapMinutes: null == softCapMinutes
           ? _value.softCapMinutes
           : softCapMinutes // ignore: cast_nullable_to_non_nullable
@@ -308,6 +338,10 @@ class _$GameCopyWithImpl<$Res, $Val extends Game>
           ? _value.weatherNotes
           : weatherNotes // ignore: cast_nullable_to_non_nullable
               as String?,
+      gameNotes: freezed == gameNotes
+          ? _value.gameNotes
+          : gameNotes // ignore: cast_nullable_to_non_nullable
+              as String?,
       isBeingTracked: null == isBeingTracked
           ? _value.isBeingTracked
           : isBeingTracked // ignore: cast_nullable_to_non_nullable
@@ -364,9 +398,12 @@ abstract class _$$GameImplCopyWith<$Res> implements $GameCopyWith<$Res> {
       String? awayTeamLogo,
       int homeScore,
       int awayScore,
+      int? halftimeHomeScore,
+      int? halftimeAwayScore,
       int gameToPoints,
+      int? originalGameToPoints,
       int hardCapPoints,
-      int halftimeAt,
+      int? halftimeAtOverride,
       int softCapMinutes,
       int hardCapMinutes,
       GameStatus status,
@@ -385,6 +422,7 @@ abstract class _$$GameImplCopyWith<$Res> implements $GameCopyWith<$Res> {
       String? windSpeed,
       String? windDirection,
       String? weatherNotes,
+      String? gameNotes,
       bool isBeingTracked,
       String? trackedByUserId,
       String? trackedByUserName,
@@ -417,9 +455,12 @@ class __$$GameImplCopyWithImpl<$Res>
     Object? awayTeamLogo = freezed,
     Object? homeScore = null,
     Object? awayScore = null,
+    Object? halftimeHomeScore = freezed,
+    Object? halftimeAwayScore = freezed,
     Object? gameToPoints = null,
+    Object? originalGameToPoints = freezed,
     Object? hardCapPoints = null,
-    Object? halftimeAt = null,
+    Object? halftimeAtOverride = freezed,
     Object? softCapMinutes = null,
     Object? hardCapMinutes = null,
     Object? status = null,
@@ -438,6 +479,7 @@ class __$$GameImplCopyWithImpl<$Res>
     Object? windSpeed = freezed,
     Object? windDirection = freezed,
     Object? weatherNotes = freezed,
+    Object? gameNotes = freezed,
     Object? isBeingTracked = null,
     Object? trackedByUserId = freezed,
     Object? trackedByUserName = freezed,
@@ -496,18 +538,30 @@ class __$$GameImplCopyWithImpl<$Res>
           ? _value.awayScore
           : awayScore // ignore: cast_nullable_to_non_nullable
               as int,
+      halftimeHomeScore: freezed == halftimeHomeScore
+          ? _value.halftimeHomeScore
+          : halftimeHomeScore // ignore: cast_nullable_to_non_nullable
+              as int?,
+      halftimeAwayScore: freezed == halftimeAwayScore
+          ? _value.halftimeAwayScore
+          : halftimeAwayScore // ignore: cast_nullable_to_non_nullable
+              as int?,
       gameToPoints: null == gameToPoints
           ? _value.gameToPoints
           : gameToPoints // ignore: cast_nullable_to_non_nullable
               as int,
+      originalGameToPoints: freezed == originalGameToPoints
+          ? _value.originalGameToPoints
+          : originalGameToPoints // ignore: cast_nullable_to_non_nullable
+              as int?,
       hardCapPoints: null == hardCapPoints
           ? _value.hardCapPoints
           : hardCapPoints // ignore: cast_nullable_to_non_nullable
               as int,
-      halftimeAt: null == halftimeAt
-          ? _value.halftimeAt
-          : halftimeAt // ignore: cast_nullable_to_non_nullable
-              as int,
+      halftimeAtOverride: freezed == halftimeAtOverride
+          ? _value.halftimeAtOverride
+          : halftimeAtOverride // ignore: cast_nullable_to_non_nullable
+              as int?,
       softCapMinutes: null == softCapMinutes
           ? _value.softCapMinutes
           : softCapMinutes // ignore: cast_nullable_to_non_nullable
@@ -580,6 +634,10 @@ class __$$GameImplCopyWithImpl<$Res>
           ? _value.weatherNotes
           : weatherNotes // ignore: cast_nullable_to_non_nullable
               as String?,
+      gameNotes: freezed == gameNotes
+          ? _value.gameNotes
+          : gameNotes // ignore: cast_nullable_to_non_nullable
+              as String?,
       isBeingTracked: null == isBeingTracked
           ? _value.isBeingTracked
           : isBeingTracked // ignore: cast_nullable_to_non_nullable
@@ -632,9 +690,12 @@ class _$GameImpl implements _Game {
       this.awayTeamLogo,
       this.homeScore = 0,
       this.awayScore = 0,
+      this.halftimeHomeScore,
+      this.halftimeAwayScore,
       this.gameToPoints = 15,
+      this.originalGameToPoints,
       this.hardCapPoints = 17,
-      this.halftimeAt = 8,
+      this.halftimeAtOverride,
       this.softCapMinutes = 75,
       this.hardCapMinutes = 90,
       this.status = GameStatus.scheduled,
@@ -653,6 +714,7 @@ class _$GameImpl implements _Game {
       this.windSpeed,
       this.windDirection,
       this.weatherNotes,
+      this.gameNotes,
       this.isBeingTracked = false,
       this.trackedByUserId,
       this.trackedByUserName,
@@ -693,16 +755,24 @@ class _$GameImpl implements _Game {
   @override
   @JsonKey()
   final int awayScore;
+  @override
+  final int? halftimeHomeScore;
+  @override
+  final int? halftimeAwayScore;
 // Game settings
   @override
   @JsonKey()
   final int gameToPoints;
+// Current target (changes when caps hit)
+  @override
+  final int? originalGameToPoints;
+// Original target (for halftime calculation), null = same as gameToPoints
   @override
   @JsonKey()
   final int hardCapPoints;
   @override
-  @JsonKey()
-  final int halftimeAt;
+  final int? halftimeAtOverride;
+// Optional override, null = use formula: (gameToPoints / 2).ceil()
   @override
   @JsonKey()
   final int softCapMinutes;
@@ -749,6 +819,9 @@ class _$GameImpl implements _Game {
   final String? windDirection;
   @override
   final String? weatherNotes;
+  @override
+  final String? gameNotes;
+// Post-game notes (injuries, notable plays, comments)
 // Tracking
   @override
   @JsonKey()
@@ -774,7 +847,7 @@ class _$GameImpl implements _Game {
 
   @override
   String toString() {
-    return 'Game(id: $id, tournamentId: $tournamentId, poolId: $poolId, bracketPosition: $bracketPosition, homeTeamId: $homeTeamId, awayTeamId: $awayTeamId, homeTeamName: $homeTeamName, awayTeamName: $awayTeamName, homeTeamLogo: $homeTeamLogo, awayTeamLogo: $awayTeamLogo, homeScore: $homeScore, awayScore: $awayScore, gameToPoints: $gameToPoints, hardCapPoints: $hardCapPoints, halftimeAt: $halftimeAt, softCapMinutes: $softCapMinutes, hardCapMinutes: $hardCapMinutes, status: $status, currentPoint: $currentPoint, currentPossession: $currentPossession, scheduledAt: $scheduledAt, startedAt: $startedAt, halftimeStartedAt: $halftimeStartedAt, softCapStartedAt: $softCapStartedAt, hardCapStartedAt: $hardCapStartedAt, endedAt: $endedAt, isDelayed: $isDelayed, delayReason: $delayReason, delayNotes: $delayNotes, delayStartedAt: $delayStartedAt, windSpeed: $windSpeed, windDirection: $windDirection, weatherNotes: $weatherNotes, isBeingTracked: $isBeingTracked, trackedByUserId: $trackedByUserId, trackedByUserName: $trackedByUserName, isSimpleTracking: $isSimpleTracking, isSynced: $isSynced, lastSyncedAt: $lastSyncedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Game(id: $id, tournamentId: $tournamentId, poolId: $poolId, bracketPosition: $bracketPosition, homeTeamId: $homeTeamId, awayTeamId: $awayTeamId, homeTeamName: $homeTeamName, awayTeamName: $awayTeamName, homeTeamLogo: $homeTeamLogo, awayTeamLogo: $awayTeamLogo, homeScore: $homeScore, awayScore: $awayScore, halftimeHomeScore: $halftimeHomeScore, halftimeAwayScore: $halftimeAwayScore, gameToPoints: $gameToPoints, originalGameToPoints: $originalGameToPoints, hardCapPoints: $hardCapPoints, halftimeAtOverride: $halftimeAtOverride, softCapMinutes: $softCapMinutes, hardCapMinutes: $hardCapMinutes, status: $status, currentPoint: $currentPoint, currentPossession: $currentPossession, scheduledAt: $scheduledAt, startedAt: $startedAt, halftimeStartedAt: $halftimeStartedAt, softCapStartedAt: $softCapStartedAt, hardCapStartedAt: $hardCapStartedAt, endedAt: $endedAt, isDelayed: $isDelayed, delayReason: $delayReason, delayNotes: $delayNotes, delayStartedAt: $delayStartedAt, windSpeed: $windSpeed, windDirection: $windDirection, weatherNotes: $weatherNotes, gameNotes: $gameNotes, isBeingTracked: $isBeingTracked, trackedByUserId: $trackedByUserId, trackedByUserName: $trackedByUserName, isSimpleTracking: $isSimpleTracking, isSynced: $isSynced, lastSyncedAt: $lastSyncedAt, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -804,12 +877,18 @@ class _$GameImpl implements _Game {
                 other.homeScore == homeScore) &&
             (identical(other.awayScore, awayScore) ||
                 other.awayScore == awayScore) &&
+            (identical(other.halftimeHomeScore, halftimeHomeScore) ||
+                other.halftimeHomeScore == halftimeHomeScore) &&
+            (identical(other.halftimeAwayScore, halftimeAwayScore) ||
+                other.halftimeAwayScore == halftimeAwayScore) &&
             (identical(other.gameToPoints, gameToPoints) ||
                 other.gameToPoints == gameToPoints) &&
+            (identical(other.originalGameToPoints, originalGameToPoints) ||
+                other.originalGameToPoints == originalGameToPoints) &&
             (identical(other.hardCapPoints, hardCapPoints) ||
                 other.hardCapPoints == hardCapPoints) &&
-            (identical(other.halftimeAt, halftimeAt) ||
-                other.halftimeAt == halftimeAt) &&
+            (identical(other.halftimeAtOverride, halftimeAtOverride) ||
+                other.halftimeAtOverride == halftimeAtOverride) &&
             (identical(other.softCapMinutes, softCapMinutes) ||
                 other.softCapMinutes == softCapMinutes) &&
             (identical(other.hardCapMinutes, hardCapMinutes) ||
@@ -844,6 +923,8 @@ class _$GameImpl implements _Game {
                 other.windDirection == windDirection) &&
             (identical(other.weatherNotes, weatherNotes) ||
                 other.weatherNotes == weatherNotes) &&
+            (identical(other.gameNotes, gameNotes) ||
+                other.gameNotes == gameNotes) &&
             (identical(other.isBeingTracked, isBeingTracked) ||
                 other.isBeingTracked == isBeingTracked) &&
             (identical(other.trackedByUserId, trackedByUserId) ||
@@ -878,9 +959,12 @@ class _$GameImpl implements _Game {
         awayTeamLogo,
         homeScore,
         awayScore,
+        halftimeHomeScore,
+        halftimeAwayScore,
         gameToPoints,
+        originalGameToPoints,
         hardCapPoints,
-        halftimeAt,
+        halftimeAtOverride,
         softCapMinutes,
         hardCapMinutes,
         status,
@@ -899,6 +983,7 @@ class _$GameImpl implements _Game {
         windSpeed,
         windDirection,
         weatherNotes,
+        gameNotes,
         isBeingTracked,
         trackedByUserId,
         trackedByUserName,
@@ -937,9 +1022,12 @@ abstract class _Game implements Game {
       final String? awayTeamLogo,
       final int homeScore,
       final int awayScore,
+      final int? halftimeHomeScore,
+      final int? halftimeAwayScore,
       final int gameToPoints,
+      final int? originalGameToPoints,
       final int hardCapPoints,
-      final int halftimeAt,
+      final int? halftimeAtOverride,
       final int softCapMinutes,
       final int hardCapMinutes,
       final GameStatus status,
@@ -958,6 +1046,7 @@ abstract class _Game implements Game {
       final String? windSpeed,
       final String? windDirection,
       final String? weatherNotes,
+      final String? gameNotes,
       final bool isBeingTracked,
       final String? trackedByUserId,
       final String? trackedByUserName,
@@ -993,13 +1082,19 @@ abstract class _Game implements Game {
   int get homeScore;
   @override
   int get awayScore;
+  @override
+  int? get halftimeHomeScore;
+  @override
+  int? get halftimeAwayScore;
   @override // Game settings
   int get gameToPoints;
-  @override
+  @override // Current target (changes when caps hit)
+  int? get originalGameToPoints;
+  @override // Original target (for halftime calculation), null = same as gameToPoints
   int get hardCapPoints;
   @override
-  int get halftimeAt;
-  @override
+  int? get halftimeAtOverride;
+  @override // Optional override, null = use formula: (gameToPoints / 2).ceil()
   int get softCapMinutes;
   @override
   int get hardCapMinutes;
@@ -1036,7 +1131,10 @@ abstract class _Game implements Game {
   String? get windDirection;
   @override
   String? get weatherNotes;
-  @override // Tracking
+  @override
+  String? get gameNotes;
+  @override // Post-game notes (injuries, notable plays, comments)
+// Tracking
   bool get isBeingTracked;
   @override
   String? get trackedByUserId;

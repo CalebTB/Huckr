@@ -1,242 +1,227 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/enums/play_type.dart';
-import '../widgets/field_canvas.dart';
+import '../../../../core/enums/game_status.dart';
+import '../../domain/entities/game.dart';
+import '../providers/live_game_provider.dart';
+import '../providers/play_log_provider.dart';
+import '../widgets/possession_chain.dart';
+import '../widgets/player_roster_buttons.dart';
+import '../widgets/terminal_outcome_buttons.dart';
+import '../widgets/goal_zone_picker.dart';
 import '../widgets/score_board.dart';
-import '../widgets/game_clock.dart';
-import '../widgets/action_buttons.dart';
 import '../widgets/play_by_play_feed.dart';
+import '../widgets/simple_score_buttons.dart';
 
-/// Live Tracking Screen - Main game tracking interface
-/// ESPN-style live tracking with field visualization
+/// Live Tracking Screen - Name-clicking workflow
+///
+/// Refactored to use Riverpod providers and name-clicking UI
+/// - PossessionChain: Visual player touch sequence
+/// - PlayerRosterButtons: Grid of player names for clicking
+/// - TerminalOutcomeButtons: Goal/Drop/Throwaway/etc
 class LiveTrackingScreen extends ConsumerStatefulWidget {
   final String gameId;
-  
+
   const LiveTrackingScreen({super.key, required this.gameId});
 
   @override
-  ConsumerState<LiveTrackingScreen> createState() => _LiveTrackingScreenState();
+  ConsumerState<LiveTrackingScreen> createState() =>
+      _LiveTrackingScreenState();
 }
 
 class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
-  // Game state (will be moved to Riverpod provider)
-  int _homeScore = 0;
-  int _awayScore = 0;
-  int _currentPoint = 1;
-  final String _homeTeamName = 'Home';
-  final String _awayTeamName = 'Away';
-  String _possession = 'home'; // 'home' or 'away'
-
-  // Field tracking state
-  double? _discX;
-  double? _discY;
-  // ignore: unused_field - will be used for player tracking
-  String? _selectedPlayerId;
-  String? _selectedPlayerName;
-  
-  // UI state
+  // UI state only (not game state - that's in providers)
   bool _showPlayByPlay = false;
-  bool _isLandscape = false;
-  
-  // Mock plays for demo
-  final List<Map<String, dynamic>> _plays = [];
-  
-  // Game clock
   final Stopwatch _gameStopwatch = Stopwatch();
   bool _isGameRunning = false;
-  
+  bool _trackPlayers = false; // Simple mode: optional player tracking
+  Timer? _uiUpdateTimer;
+
+  // Simple mode score history (for undo)
+  final List<String> _simpleScoreHistory = [];
+
+  // Timeout tracking (local state for now - TODO: move to Game entity)
+  int _homeTimeouts = 2;
+  int _awayTimeouts = 2;
+
   @override
   void initState() {
     super.initState();
     // Start game clock
     _gameStopwatch.start();
     _isGameRunning = true;
+
+    // Start UI update timer to refresh countdown every second
+    _startUiUpdateTimer();
+
+    // Ensure game is in progress status
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final game = await ref.read(liveGameProvider(widget.gameId).future);
+      if (game.status == GameStatus.scheduled || game.status == GameStatus.warmup) {
+        print('🎮 Setting game to inProgress');
+        await ref.read(liveGameProvider(widget.gameId).notifier).beginPlay();
+      }
+    });
+
+    // Periodically check cap status (every 30 seconds)
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 30));
+      if (!mounted) return false;
+      final gameAsync = ref.read(liveGameProvider(widget.gameId));
+      gameAsync.whenData((game) => _checkCapStatus(game));
+      return mounted;
+    });
   }
-  
+
   @override
   void dispose() {
+    _uiUpdateTimer?.cancel();
     _gameStopwatch.stop();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    _isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    
-    if (_isLandscape) {
-      return _buildLandscapeLayout();
-    }
-    return _buildPortraitLayout();
+  void _startUiUpdateTimer() {
+    _uiUpdateTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {}); // Trigger rebuild to update timer display
+      }
+    });
   }
 
-  /// Portrait layout - optimized for one-handed tracking
-  Widget _buildPortraitLayout() {
-    return Scaffold(
-      backgroundColor: AppTheme.primaryDark,
-      appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          // Score Board
-          ScoreBoard(
-            homeTeamName: _homeTeamName,
-            awayTeamName: _awayTeamName,
-            homeScore: _homeScore,
-            awayScore: _awayScore,
-            possession: _possession,
-            currentPoint: _currentPoint,
-          ),
-          
-          // Game Clock
-          GameClock(
-            stopwatch: _gameStopwatch,
-            isRunning: _isGameRunning,
-            onToggle: _toggleGameClock,
-          ),
-          
-          const SizedBox(height: 8),
-          
-          // Field Canvas
-          Expanded(
-            flex: 3,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: FieldCanvas(
-                discX: _discX,
-                discY: _discY,
-                possession: _possession,
-                homeTeamName: _homeTeamName,
-                awayTeamName: _awayTeamName,
-                onFieldTap: _handleFieldTap,
+  @override
+  Widget build(BuildContext context) {
+    final gameAsync = ref.watch(liveGameProvider(widget.gameId));
+
+    return gameAsync.when(
+      data: (game) => _buildGameScreen(game),
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stack) => Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: AppTheme.error),
+              const SizedBox(height: 16),
+              Text('Error loading game: $error'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => context.go('/'),
+                child: const Text('Go Home'),
               ),
-            ),
+            ],
           ),
-          
-          const SizedBox(height: 16),
-          
-          // Action Buttons
-          ActionButtons(
-            onAction: _handleAction,
-            possession: _possession,
-            hasDiscPosition: _discX != null,
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Play By Play Toggle
-          _buildPlayByPlayToggle(),
-          
-          // Play By Play Feed (expandable)
-          if (_showPlayByPlay)
-            SizedBox(
-              height: 200,
-              child: PlayByPlayFeed(plays: _plays),
-            ),
-        ],
+        ),
       ),
     );
   }
 
-  /// Landscape layout - optimized for two-person tracking or tablets
-  Widget _buildLandscapeLayout() {
+  Widget _buildGameScreen(game) {
+    final playLogState = ref.watch(playLogProvider(widget.gameId));
+
     return Scaffold(
-      backgroundColor: AppTheme.primaryDark,
+      backgroundColor: AppTheme.background,
+      appBar: _buildAppBar(game),
       body: SafeArea(
-        child: Row(
+        child: Stack(
           children: [
-            // Left panel - Score and Controls
-            SizedBox(
-              width: 280,
-              child: Column(
-                children: [
-                  // Back button and game info
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => _showExitConfirmation(context),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Point $_currentPoint',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Scores
-                  _buildCompactScoreBoard(),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Clock
-                  GameClock(
-                    stopwatch: _gameStopwatch,
-                    isRunning: _isGameRunning,
-                    onToggle: _toggleGameClock,
-                    compact: true,
-                  ),
-                  
-                  const Divider(height: 32),
-                  
-                  // Action buttons (vertical)
-                  Expanded(
-                    child: ActionButtons(
-                      onAction: _handleAction,
-                      possession: _possession,
-                      hasDiscPosition: _discX != null,
-                      vertical: true,
-                    ),
-                  ),
-                ],
-              ),
+            // Main content
+            Column(
+              children: [
+            // Score Board with integrated timer
+            ScoreBoard(
+              homeTeamName: game.homeTeamName,
+              awayTeamName: game.awayTeamName,
+              homeScore: game.homeScore,
+              awayScore: game.awayScore,
+              possession: game.currentPossession ?? game.homeTeamId,
+              currentPoint: game.currentPoint,
+              homeTimeouts: _homeTimeouts,
+              awayTimeouts: _awayTimeouts,
+              timeString: _getTimeString(game),
+              timeLabel: _getTimeLabel(game),
+              timerColor: _getTimerColor(game),
+              capBadge: _getCapBadge(game),
+              onTimerTap: _toggleGameClock,
+              halftimeHomeScore: game.halftimeHomeScore,
+              halftimeAwayScore: game.halftimeAwayScore,
+              isHalftime: game.status == GameStatus.halftime,
             ),
-            
-            // Divider
-            const VerticalDivider(width: 1),
-            
-            // Center - Field
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: FieldCanvas(
-                  discX: _discX,
-                  discY: _discY,
-                  possession: _possession,
-                  homeTeamName: _homeTeamName,
-                  awayTeamName: _awayTeamName,
-                  onFieldTap: _handleFieldTap,
-                  landscape: true,
+
+            const SizedBox(height: 8),
+
+            // SIMPLE MODE: Just score buttons
+            if (!_trackPlayers)
+              Expanded(
+                child: SimpleScoreButtons(
+                  homeTeamName: game.homeTeamName,
+                  awayTeamName: game.awayTeamName,
+                  onHomeScore: () => _handleSimpleScore(game, game.homeTeamId),
+                  onAwayScore: () => _handleSimpleScore(game, game.awayTeamId),
+                  onTimeout: () => _handleSimpleTimeout(game),
+                  onUndo: _simpleScoreHistory.isNotEmpty
+                      ? () => _handleSimpleUndo(game)
+                      : null,
                 ),
               ),
-            ),
-            
-            // Divider
-            const VerticalDivider(width: 1),
-            
-            // Right panel - Play by Play
-            SizedBox(
-              width: 280,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'Play by Play',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  Expanded(
-                    child: PlayByPlayFeed(plays: _plays),
-                  ),
-                ],
+
+            // ADVANCED MODE: Player tracking UI
+            if (_trackPlayers) ...[
+              PossessionChain(
+                gameId: widget.gameId,
+                showPullIndicator: playLogState.possessionChain.isEmpty &&
+                    game.currentPoint == 1,
               ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: PlayerRosterButtons(
+                    gameId: widget.gameId,
+                    teamId: game.currentPossession ?? game.homeTeamId,
+                    isDefense: false,
+                    onPlayerTap: (player) {
+                      ref
+                          .read(playLogProvider(widget.gameId).notifier)
+                          .addPlayerToChain(player);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildPlayByPlayToggle(playLogState.plays.length),
+              if (_showPlayByPlay)
+                SizedBox(
+                  height: 200,
+                  child: PlayByPlayFeed(
+                    plays: playLogState.plays
+                        .map((p) => {
+                              'type': p.type.displayName,
+                              'playType': p.type,
+                              'player': p.playerName ?? 'Unknown',
+                              'timestamp': p.timestamp,
+                            })
+                        .toList(),
+                  ),
+                ),
+              TerminalOutcomeButtons(
+                chainIsEmpty: playLogState.possessionChain.isEmpty,
+                onGoal: () => _handleGoal(game),
+                onDrop: () => _handleTurnover(game, PlayType.drop),
+                onThrowaway: () => _handleTurnover(game, PlayType.throwaway),
+                onStall: () => _handleTurnover(game, PlayType.stall),
+                onOutOfBounds: () => _handleTurnover(game, PlayType.outOfBounds),
+                onBlock: () => _handleBlock(game),
+                onTimeout: () => _handleTimeout(game),
+              ),
+            ],
+          ],
             ),
           ],
         ),
@@ -244,103 +229,66 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
     );
   }
 
-  AppBar _buildAppBar() {
+  AppBar _buildAppBar(game) {
+    final playLogState = ref.watch(playLogProvider(widget.gameId));
+
     return AppBar(
-      backgroundColor: AppTheme.primaryDark,
+      backgroundColor: AppTheme.background,
       leading: IconButton(
         icon: const Icon(Icons.close),
-        onPressed: () => _showExitConfirmation(context),
+        onPressed: () => _showExitConfirmation(context, game),
       ),
-      title: Text('Point $_currentPoint'),
+      title: Text('Point ${game.currentPoint}'),
       actions: [
+        // Toggle player tracking
+        if (game.isSimpleTracking)
+          IconButton(
+            icon: Icon(
+              _trackPlayers ? Icons.people : Icons.people_outline,
+              color: _trackPlayers ? AppTheme.accent : null,
+            ),
+            onPressed: () => setState(() => _trackPlayers = !_trackPlayers),
+            tooltip: _trackPlayers ? 'Disable Player Tracking' : 'Enable Player Tracking',
+          ),
         IconButton(
           icon: const Icon(Icons.undo),
-          onPressed: _plays.isNotEmpty ? _undoLastPlay : null,
+          onPressed: playLogState.plays.isNotEmpty
+              ? () => _undoLastPlay(game)
+              : null,
           tooltip: 'Undo',
         ),
         IconButton(
           icon: const Icon(Icons.more_vert),
-          onPressed: () => _showGameMenu(context),
+          onPressed: () => _showGameMenu(context, game),
         ),
       ],
     );
   }
 
-  Widget _buildCompactScoreBoard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildCompactTeamScore(_homeTeamName, _homeScore, _possession == 'home'),
-          Text(
-            '-',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          _buildCompactTeamScore(_awayTeamName, _awayScore, _possession == 'away'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCompactTeamScore(String name, int score, bool hasPossession) {
-    return Column(
-      children: [
-        Text(
-          name,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: hasPossession ? AppTheme.primaryGreen : AppTheme.gray400,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$score',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-            color: hasPossession ? AppTheme.primaryGreen : Colors.white,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        if (hasPossession)
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.only(top: 4),
-            decoration: const BoxDecoration(
-              color: AppTheme.primaryGreen,
-              shape: BoxShape.circle,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildPlayByPlayToggle() {
+  Widget _buildPlayByPlayToggle(int playCount) {
     return InkWell(
       onTap: () => setState(() => _showPlayByPlay = !_showPlayByPlay),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          color: AppTheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _showPlayByPlay ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
-              color: AppTheme.gray400,
+              _showPlayByPlay
+                  ? Icons.keyboard_arrow_down
+                  : Icons.keyboard_arrow_up,
+              color: AppTheme.textSecondary,
             ),
             const SizedBox(width: 8),
             Text(
-              'Play by Play (${_plays.length})',
+              'Play by Play ($playCount)',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.gray400,
-              ),
+                    color: AppTheme.textSecondary,
+                  ),
             ),
           ],
         ),
@@ -363,186 +311,419 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
     });
   }
 
-  void _handleFieldTap(double x, double y) {
-    setState(() {
-      _discX = x;
-      _discY = y;
-    });
-    
-    // Show player selector for the team with possession
-    _showPlayerSelector();
+  /// Calculate timer countdown string (MM:SS format)
+  String _getTimeString(game) {
+    final elapsed = _gameStopwatch.elapsed;
+    final elapsedSeconds = elapsed.inSeconds;
+    final softCapSeconds = (game.softCapMinutes as int) * 60;
+    final hardCapSeconds = (game.hardCapMinutes as int) * 60;
+
+    int remainingSeconds;
+
+    if (elapsedSeconds >= hardCapSeconds) {
+      // Hard cap reached - show overtime
+      remainingSeconds = elapsedSeconds - hardCapSeconds;
+    } else if (elapsedSeconds >= softCapSeconds) {
+      // Counting down to hard cap
+      remainingSeconds = hardCapSeconds - elapsedSeconds;
+    } else {
+      // Counting down to soft cap
+      remainingSeconds = softCapSeconds - elapsedSeconds;
+    }
+
+    final minutes = remainingSeconds.abs() ~/ 60;
+    final seconds = remainingSeconds.abs() % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  void _handleAction(PlayType action) {
-    if (_discX == null && action != PlayType.timeout) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tap on the field to mark disc position first'),
-          duration: Duration(seconds: 2),
-        ),
+  /// Get timer phase label
+  String _getTimeLabel(game) {
+    final elapsed = _gameStopwatch.elapsed;
+    final elapsedSeconds = elapsed.inSeconds;
+    final softCapSeconds = (game.softCapMinutes as int) * 60;
+    final hardCapSeconds = (game.hardCapMinutes as int) * 60;
+
+    if (elapsedSeconds >= hardCapSeconds) {
+      return 'OVERTIME';
+    } else if (elapsedSeconds >= softCapSeconds) {
+      return 'TO HARD CAP';
+    } else {
+      return 'TO SOFT CAP';
+    }
+  }
+
+  /// Get timer color based on cap status
+  Color _getTimerColor(game) {
+    final elapsed = _gameStopwatch.elapsed;
+    final minutes = elapsed.inMinutes;
+
+    if (minutes >= game.hardCapMinutes) {
+      return AppTheme.error;
+    } else if (minutes >= game.softCapMinutes) {
+      return AppTheme.warning;
+    } else if (minutes >= game.softCapMinutes - 5) {
+      return AppTheme.accent;
+    }
+    return AppTheme.textPrimary;
+  }
+
+  /// Get cap badge text (null if no cap active)
+  String? _getCapBadge(game) {
+    final elapsed = _gameStopwatch.elapsed;
+    final minutes = elapsed.inMinutes;
+
+    if (minutes >= game.hardCapMinutes) {
+      return 'HARD CAP';
+    } else if (minutes >= game.softCapMinutes) {
+      return 'SOFT CAP';
+    }
+    return null;
+  }
+
+  /// Check and update game status based on elapsed time (soft/hard cap)
+  Future<void> _checkCapStatus(Game game) async {
+    final elapsed = _gameStopwatch.elapsed;
+    final minutes = elapsed.inMinutes;
+
+    // Debug logging
+    print('🔍 DEBUG: Checking cap status');
+    print('   Score: ${game.homeScore}-${game.awayScore}, Halftime at: ${game.halftimeAt}');
+    print('   Game status: ${game.status}');
+    print('   Minutes elapsed: $minutes');
+
+    // Check hard cap first
+    if (minutes >= game.hardCapMinutes &&
+        game.status != GameStatus.hardCap &&
+        game.status != GameStatus.completed) {
+      await ref.read(liveGameProvider(widget.gameId).notifier).activateHardCap();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🔴 HARD CAP - Next point wins!'),
+            backgroundColor: AppTheme.error,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+    // Then check soft cap
+    else if (minutes >= game.softCapMinutes &&
+        game.status != GameStatus.softCap &&
+        game.status != GameStatus.hardCap &&
+        game.status != GameStatus.completed) {
+      await ref.read(liveGameProvider(widget.gameId).notifier).activateSoftCap();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '🟡 SOFT CAP - Play to ${game.homeScore > game.awayScore ? game.homeScore + 1 : game.awayScore + 1}'),
+            backgroundColor: AppTheme.warning,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+    // Check halftime - when either team reaches halftimeAt points
+    else if ((game.homeScore >= game.halftimeAt || game.awayScore >= game.halftimeAt) &&
+        game.halftimeHomeScore == null &&
+        game.status != GameStatus.completed &&
+        game.status != GameStatus.cancelled) {
+      print('✅ HALFTIME TRIGGERED!');
+
+      // Capture current scores for notification (before async call)
+      final halftimeHome = game.homeScore;
+      final halftimeAway = game.awayScore;
+
+      await ref.read(liveGameProvider(widget.gameId).notifier).startHalftime();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⏸️ Halftime - $halftimeHome-$halftimeAway'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleGoal(game) async {
+    final playLogNotifier = ref.read(playLogProvider(widget.gameId).notifier);
+    final liveGameNotifier = ref.read(liveGameProvider(widget.gameId).notifier);
+
+    // Clear halftime indicator when play resumes
+    // Resume from halftime status if needed
+    if (game.status == GameStatus.halftime) {
+      await liveGameNotifier.resumeFromHalftime();
+    }
+
+    // Only track play details if player tracking is enabled
+    if (_trackPlayers) {
+      // Optionally ask for zone
+      String? zone;
+      if (mounted) {
+        zone = await showDialog<String>(
+          context: context,
+          builder: (context) => const GoalZonePicker(),
+        );
+      }
+
+      // Record goal with auto-tracked assists
+      await playLogNotifier.recordGoal(
+        gameId: widget.gameId,
+        currentPoint: game.currentPoint,
+        zone: zone,
       );
+    }
+
+    // Increment score
+    final scoringTeamId = game.currentPossession ?? game.homeTeamId;
+    await liveGameNotifier.incrementScore(scoringTeamId);
+
+    // End point and swap possession
+    await liveGameNotifier.endPoint();
+
+    // Fetch updated game with new score
+    final updatedGame = await ref.read(liveGameProvider(widget.gameId).future);
+
+    // Check cap status with updated game
+    await _checkCapStatus(updatedGame);
+
+    // Check for game end
+    if (updatedGame.homeScore >= updatedGame.gameToPoints ||
+        updatedGame.awayScore >= updatedGame.gameToPoints) {
+      _showGameEndDialog(updatedGame);
+    }
+  }
+
+  Future<void> _handleTurnover(game, PlayType turnoverType) async {
+    final liveGameNotifier = ref.read(liveGameProvider(widget.gameId).notifier);
+
+    // Only record turnover if player tracking is enabled
+    if (_trackPlayers) {
+      final playLogNotifier = ref.read(playLogProvider(widget.gameId).notifier);
+      await playLogNotifier.recordTurnover(
+        gameId: widget.gameId,
+        currentPoint: game.currentPoint,
+        turnoverType: turnoverType,
+      );
+    }
+
+    // Always swap possession
+    final newPossession =
+        game.currentPossession == game.homeTeamId ? game.awayTeamId : game.homeTeamId;
+    await liveGameNotifier.updatePossession(newPossession);
+  }
+
+  Future<void> _handleBlock(game) async {
+    if (!mounted) return;
+
+    final defensiveTeamId = game.currentPossession == game.homeTeamId
+        ? game.awayTeamId
+        : game.homeTeamId;
+    final liveGameNotifier = ref.read(liveGameProvider(widget.gameId).notifier);
+
+    // If not tracking players, just swap possession
+    if (!_trackPlayers) {
+      await liveGameNotifier.updatePossession(defensiveTeamId);
       return;
     }
-    
-    // Record the play
-    final play = {
-      'type': action.displayName,
-      'playType': action,
-      'x': _discX,
-      'y': _discY,
-      'timestamp': DateTime.now(),
-      'player': _selectedPlayerName ?? 'Unknown',
-      'possession': _possession,
-    };
-    
-    setState(() {
-      _plays.insert(0, play);
-      
-      // Handle action outcomes
-      switch (action) {
-        case PlayType.goal:
-          _handleGoal();
-          break;
-        case PlayType.callahan:
-          _handleCallahan();
-          break;
-        case PlayType.drop:
-        case PlayType.throwaway:
-        case PlayType.stall:
-        case PlayType.outOfBounds:
-          _handleTurnover();
-          break;
-        case PlayType.block:
-        case PlayType.interception:
-          _handleDefensivePlay();
-          break;
-        case PlayType.catch_:
-          // Just record the catch, possession stays
-          break;
-        case PlayType.pull:
-          // Reset disc position for pull
-          _discX = null;
-          _discY = null;
-          break;
-        default:
-          break;
-      }
-      
-      // Clear selected player after action
-      _selectedPlayerId = null;
-      _selectedPlayerName = null;
-    });
-  }
 
-  void _handleGoal() {
-    if (_possession == 'home') {
-      _homeScore++;
-    } else {
-      _awayScore++;
-    }
-    
-    // Start new point
-    _currentPoint++;
-    _discX = null;
-    _discY = null;
-    
-    // Check for game end
-    if (_homeScore >= 15 || _awayScore >= 15) {
-      _showGameEndDialog();
-    }
-  }
+    // Show defense roster to select blocker
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Who got the block?',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 400,
+                child: PlayerRosterButtons(
+                  gameId: widget.gameId,
+                  teamId: defensiveTeamId,
+                  isDefense: true,
+                  onPlayerTap: (defender) async {
+                    Navigator.of(context).pop();
 
-  void _handleCallahan() {
-    // Callahan is caught by defense, so opposite team scores
-    if (_possession == 'home') {
-      _awayScore++;
-    } else {
-      _homeScore++;
-    }
-    
-    // Swap possession for next point
-    _possession = _possession == 'home' ? 'away' : 'home';
-    
-    _currentPoint++;
-    _discX = null;
-    _discY = null;
-  }
+                    final playLogNotifier =
+                        ref.read(playLogProvider(widget.gameId).notifier);
 
-  void _handleTurnover() {
-    // Swap possession
-    _possession = _possession == 'home' ? 'away' : 'home';
-  }
+                    // Record block
+                    await playLogNotifier.recordDefensivePlay(
+                      gameId: widget.gameId,
+                      currentPoint: game.currentPoint,
+                      defender: defender,
+                      playType: PlayType.block,
+                    );
 
-  void _handleDefensivePlay() {
-    // Swap possession
-    _possession = _possession == 'home' ? 'away' : 'home';
-  }
-
-  void _undoLastPlay() {
-    if (_plays.isEmpty) return;
-    
-    final lastPlay = _plays.removeAt(0);
-    
-    setState(() {
-      // Reverse the action effects
-      final playType = lastPlay['playType'] as PlayType;
-      
-      switch (playType) {
-        case PlayType.goal:
-          if (lastPlay['possession'] == 'home') {
-            _homeScore--;
-          } else {
-            _awayScore--;
-          }
-          _currentPoint--;
-          break;
-        case PlayType.callahan:
-          if (lastPlay['possession'] == 'home') {
-            _awayScore--;
-          } else {
-            _homeScore--;
-          }
-          _currentPoint--;
-          _possession = lastPlay['possession'] as String;
-          break;
-        case PlayType.drop:
-        case PlayType.throwaway:
-        case PlayType.stall:
-        case PlayType.outOfBounds:
-        case PlayType.block:
-        case PlayType.interception:
-          // Reverse possession change
-          _possession = lastPlay['possession'] as String;
-          break;
-        default:
-          break;
-      }
-      
-      // Restore disc position
-      _discX = lastPlay['x'] as double?;
-      _discY = lastPlay['y'] as double?;
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Undid: ${lastPlay['type']}'),
-        duration: const Duration(seconds: 1),
-      ),
+                    // Swap possession
+                    await liveGameNotifier.updatePossession(defensiveTeamId);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  void _showPlayerSelector() {
-    // TODO: Show player selector modal
-    // For now, we'll skip this step
+  Future<void> _handleTimeout(game) async {
+    // Only record timeout if player tracking is enabled
+    if (_trackPlayers) {
+      final playLogNotifier = ref.read(playLogProvider(widget.gameId).notifier);
+      await playLogNotifier.recordTimeout(
+        gameId: widget.gameId,
+        currentPoint: game.currentPoint,
+        teamId: game.currentPossession ?? game.homeTeamId,
+      );
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Timeout called'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
-  void _showExitConfirmation(BuildContext context) {
+  // ============================================
+  // SIMPLE MODE HANDLERS
+  // ============================================
+
+  Future<void> _handleSimpleScore(game, String teamId) async {
+    final liveGameNotifier = ref.read(liveGameProvider(widget.gameId).notifier);
+
+    // Clear halftime indicator when play resumes
+    // Resume from halftime status if needed
+    if (game.status == GameStatus.halftime) {
+      await liveGameNotifier.resumeFromHalftime();
+    }
+
+    // Track for undo
+    _simpleScoreHistory.add(teamId);
+
+    // Increment score
+    await liveGameNotifier.incrementScore(teamId);
+
+    // Fetch updated game with new score
+    final updatedGame = await ref.read(liveGameProvider(widget.gameId).future);
+
+    // Check cap status with updated game
+    await _checkCapStatus(updatedGame);
+
+    // Check for game end
+    if (updatedGame.homeScore >= updatedGame.gameToPoints ||
+        updatedGame.awayScore >= updatedGame.gameToPoints) {
+      _showGameEndDialog(updatedGame);
+    }
+  }
+
+  void _handleSimpleTimeout(game) {
+    // Determine which team called timeout (based on possession)
+    final isHomeTimeout = game.currentPossession == game.homeTeamId;
+
+    setState(() {
+      if (isHomeTimeout && _homeTimeouts > 0) {
+        _homeTimeouts--;
+      } else if (!isHomeTimeout && _awayTimeouts > 0) {
+        _awayTimeouts--;
+      }
+    });
+
+    if (mounted) {
+      final teamName = isHomeTimeout ? game.homeTeamName : game.awayTeamName;
+      final remaining = isHomeTimeout ? _homeTimeouts : _awayTimeouts;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$teamName timeout ($remaining remaining)'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleSimpleUndo(game) async {
+    if (_simpleScoreHistory.isEmpty) return;
+
+    final liveGameNotifier = ref.read(liveGameProvider(widget.gameId).notifier);
+
+    // Get last team that scored
+    final lastScoringTeam = _simpleScoreHistory.removeLast();
+
+    // Decrement their score
+    await liveGameNotifier.decrementScore(lastScoringTeam);
+
+    if (mounted) {
+      final teamName = lastScoringTeam == game.homeTeamId
+          ? game.homeTeamName
+          : game.awayTeamName;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Undid $teamName score'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  // ============================================
+  // ADVANCED MODE HANDLERS
+  // ============================================
+
+  Future<void> _undoLastPlay(game) async {
+    final playLogNotifier = ref.read(playLogProvider(widget.gameId).notifier);
+    final liveGameNotifier = ref.read(liveGameProvider(widget.gameId).notifier);
+    final playLogState = ref.read(playLogProvider(widget.gameId));
+
+    if (playLogState.plays.isEmpty) return;
+
+    final lastPlay = playLogState.plays.last;
+
+    // Undo the play
+    await playLogNotifier.undoLastPlay();
+
+    // Reverse game state changes
+    if (lastPlay.type == PlayType.goal) {
+      // Decrement score
+      await liveGameNotifier.decrementScore(lastPlay.teamId);
+
+      // Note: In a full implementation, we'd restore the previous point
+      // For now, we'll just show a message
+    } else if (lastPlay.type.isTurnover || lastPlay.type.isDefensivePlay) {
+      // Swap possession back
+      final previousPossession =
+          game.currentPossession == game.homeTeamId ? game.awayTeamId : game.homeTeamId;
+      await liveGameNotifier.updatePossession(previousPossession);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Undid: ${lastPlay.type.displayName}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _showExitConfirmation(BuildContext context, game) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('End Game?'),
         content: const Text(
-          'Are you sure you want to exit? Game progress will be saved locally.',
+          'Are you sure you want to exit? Game progress has been saved.',
         ),
         actions: [
           TextButton(
@@ -569,167 +750,126 @@ class _LiveTrackingScreenState extends ConsumerState<LiveTrackingScreen> {
     );
   }
 
-  void _showGameMenu(BuildContext context) {
+  void _showGameMenu(BuildContext context, game) {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.timer),
-              title: const Text('Timeout'),
-              onTap: () {
-                Navigator.pop(context);
-                _handleAction(PlayType.timeout);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.healing),
-              title: const Text('Injury Stoppage'),
-              onTap: () {
-                Navigator.pop(context);
-                _handleAction(PlayType.injury);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.swap_horiz),
-              title: const Text('Change Possession'),
-              onTap: () {
-                Navigator.pop(context);
-                setState(() {
-                  _possession = _possession == 'home' ? 'away' : 'home';
-                });
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Edit Score'),
-              onTap: () {
-                Navigator.pop(context);
-                _showEditScoreDialog();
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.flag, color: AppTheme.accentOrange),
-              title: const Text('End Game'),
-              onTap: () {
-                Navigator.pop(context);
-                _showGameEndDialog();
-              },
-            ),
-          ],
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.swap_horiz),
+                title: const Text('Change Possession'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final newPossession = game.currentPossession == game.homeTeamId
+                      ? game.awayTeamId
+                      : game.homeTeamId;
+                  await ref
+                      .read(liveGameProvider(widget.gameId).notifier)
+                      .updatePossession(newPossession);
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.flag, color: AppTheme.accent),
+                title: const Text('End Game'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showGameEndDialog(game);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  void _showEditScoreDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        int tempHome = _homeScore;
-        int tempAway = _awayScore;
-        
-        return AlertDialog(
-          title: const Text('Edit Score'),
-          content: StatefulBuilder(
-            builder: (context, setDialogState) {
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  // Home score
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_homeTeamName),
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => setDialogState(() => tempHome--),
-                            icon: const Icon(Icons.remove),
-                          ),
-                          Text(
-                            '$tempHome',
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          IconButton(
-                            onPressed: () => setDialogState(() => tempHome++),
-                            icon: const Icon(Icons.add),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  
-                  // Away score
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_awayTeamName),
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => setDialogState(() => tempAway--),
-                            icon: const Icon(Icons.remove),
-                          ),
-                          Text(
-                            '$tempAway',
-                            style: Theme.of(context).textTheme.headlineMedium,
-                          ),
-                          IconButton(
-                            onPressed: () => setDialogState(() => tempAway++),
-                            icon: const Icon(Icons.add),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _homeScore = tempHome;
-                  _awayScore = tempAway;
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  Future<void> _showGameEndDialog(game) async {
+    final notesController = TextEditingController();
 
-  void _showGameEndDialog() {
+    // Fetch latest game state to ensure we have halftime scores
+    final latestGame = await ref.read(liveGameProvider(widget.gameId).future);
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('End Game'),
-        content: Text(
-          'Final Score: $_homeTeamName $_homeScore - $_awayScore $_awayTeamName\n\n'
-          'Save and view game summary?',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Final Score: ${latestGame.homeTeamName} ${latestGame.homeScore} - ${latestGame.awayScore} ${latestGame.awayTeamName}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            if (latestGame.halftimeHomeScore != null && latestGame.halftimeAwayScore != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Halftime: ${latestGame.halftimeHomeScore}-${latestGame.halftimeAwayScore}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 16),
+            const Text(
+              'Game Notes (optional)',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: notesController,
+              maxLines: 3,
+              maxLength: 500,
+              decoration: InputDecoration(
+                hintText: 'Injuries, notable plays, comments...',
+                hintStyle: TextStyle(color: AppTheme.textTertiary),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.cardBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(color: AppTheme.primaryGreen),
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pop(context);
+            },
             child: const Text('Continue Playing'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.go('/game/summary/${widget.gameId}');
+            onPressed: () async {
+              // Save notes if provided
+              if (notesController.text.trim().isNotEmpty) {
+                await ref
+                    .read(liveGameProvider(widget.gameId).notifier)
+                    .updateGameNotes(notesController.text);
+              }
+
+              // Mark game as completed
+              await ref
+                  .read(liveGameProvider(widget.gameId).notifier)
+                  .completeGame();
+
+              if (context.mounted) {
+                Navigator.pop(context);
+                context.go('/game/summary/${widget.gameId}');
+              }
             },
             child: const Text('End Game'),
           ),

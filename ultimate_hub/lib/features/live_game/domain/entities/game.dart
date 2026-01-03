@@ -25,11 +25,14 @@ class Game with _$Game {
     // Score
     @Default(0) int homeScore,
     @Default(0) int awayScore,
+    int? halftimeHomeScore,
+    int? halftimeAwayScore,
 
     // Game settings
-    @Default(15) int gameToPoints,
+    @Default(15) int gameToPoints, // Current target (changes when caps hit)
+    int? originalGameToPoints, // Original target (for halftime calculation), null = same as gameToPoints
     @Default(17) int hardCapPoints,
-    @Default(8) int halftimeAt,
+    int? halftimeAtOverride, // Optional override, null = use formula: (gameToPoints / 2).ceil()
     @Default(75) int softCapMinutes,
     @Default(90) int hardCapMinutes,
 
@@ -56,6 +59,7 @@ class Game with _$Game {
     String? windSpeed,
     String? windDirection,
     String? weatherNotes,
+    String? gameNotes, // Post-game notes (injuries, notable plays, comments)
 
     // Tracking
     @Default(false) bool isBeingTracked,
@@ -75,6 +79,16 @@ class Game with _$Game {
 
 /// Extension methods for Game
 extension GameExtensions on Game {
+  /// Calculate halftime point dynamically based on ORIGINAL game format
+  /// Formula: (originalGameToPoints / 2) rounded up
+  /// Examples: Game to 15 → 8, Game to 13 → 7, Game to 11 → 6
+  /// Note: Halftime is based on original format, not adjusted for caps
+  int get halftimeAt {
+    if (halftimeAtOverride != null) return halftimeAtOverride!;
+    final original = originalGameToPoints ?? gameToPoints;
+    return (original / 2).ceil();
+  }
+
   /// Check if game is currently active (being played)
   bool get isActive => status == GameStatus.inProgress ||
                        status == GameStatus.halftime ||

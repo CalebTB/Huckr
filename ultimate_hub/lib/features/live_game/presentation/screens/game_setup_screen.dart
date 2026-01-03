@@ -297,8 +297,9 @@ class _GameSetupScreenState extends ConsumerState<GameSetupScreen> {
         homeScore: 0,
         awayScore: 0,
         gameToPoints: _gameToPoints,
+        originalGameToPoints: _gameToPoints, // Store original for halftime calculation
         hardCapPoints: _hardCapPoints,
-        halftimeAt: GameRules.defaultHalftimeAt,
+        // halftimeAt is now calculated dynamically: (_gameToPoints / 2).ceil()
         softCapMinutes: _softCapMinutes,
         hardCapMinutes: _hardCapMinutes,
         status: GameStatus.scheduled,
